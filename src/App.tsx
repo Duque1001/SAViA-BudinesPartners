@@ -6,8 +6,11 @@ import { useEffect, useMemo, useState } from "react";
 // Autenticación con Microsoft MSAL
 import { useIsAuthenticated, useMsal } from "@azure/msal-react";
 
-// WebChat y conexión Direct Line
-import ReactWebChat, { createDirectLine } from "botframework-webchat";
+// WebChat, conexión Direct Line y store interno de WebChat
+import ReactWebChat, {
+  createDirectLine,
+  createStore,
+} from "botframework-webchat";
 
 // Estilos globales
 import "./App.css";
@@ -37,6 +40,24 @@ function App() {
   const email = accounts.length > 0 ? accounts[0].username : "";
   const userId = email.includes("@") ? email.split("@")[0] : email || "Usuario";
 
+  // Claves usadas en localStorage para persistir el chat
+  const CHAT_TOKEN_KEY = "savio_token";
+  const CHAT_CONVERSATION_KEY = "savio_conversation_id";
+  const CHAT_WATERMARK_KEY = "savio_watermark";
+  const CHAT_ACTIVITIES_KEY = "savio_activities";
+
+  // Límite de actividades guardadas para evitar llenar localStorage
+  const MAX_ACTIVITIES = 100;
+
+  // Limpia completamente la sesión del chat
+  const clearChatStorage = () => {
+    console.warn("Limpiando sesión completa del chat...");
+    localStorage.removeItem(CHAT_TOKEN_KEY);
+    localStorage.removeItem(CHAT_CONVERSATION_KEY);
+    localStorage.removeItem(CHAT_WATERMARK_KEY);
+    localStorage.removeItem(CHAT_ACTIVITIES_KEY);
+  };
+
   // Estado de navegación
   const [activeView, setActiveView] = useState<ViewKey>("chat");
   const [isSideOpen, setSideOpen] = useState(false);
@@ -61,6 +82,70 @@ function App() {
     }),
     []
   );
+
+  // Store de WebChat con persistencia manual de actividades
+  const store = useMemo(() => {
+    return createStore(
+      {},
+      () => (next: any) => (action: any) => {
+        // Guarda actividades entrantes para poder reconstruir visualmente el chat
+        if (action.type === "DIRECT_LINE/INCOMING_ACTIVITY") {
+          const activity = action.payload.activity;
+
+          // Guarda watermark para que Direct Line continúe leyendo desde el último mensaje recibido
+          if (activity?.id) {
+            const activityWatermark = activity.id.split("|").pop();
+
+            if (activityWatermark) {
+              localStorage.setItem(CHAT_WATERMARK_KEY, activityWatermark);
+            }
+          }
+
+          // Guarda el historial visual del chat en localStorage
+          const currentActivities = JSON.parse(
+            localStorage.getItem(CHAT_ACTIVITIES_KEY) || "[]"
+          );
+
+          // Evita duplicar actividades ya guardadas
+          const alreadyExists = currentActivities.some(
+            (item: any) => item.id === activity.id
+          );
+
+          if (!alreadyExists) {
+            currentActivities.push(activity);
+
+            // Mantiene solo las últimas actividades para no saturar localStorage
+            const trimmedActivities = currentActivities.slice(-MAX_ACTIVITIES);
+
+            localStorage.setItem(
+              CHAT_ACTIVITIES_KEY,
+              JSON.stringify(trimmedActivities)
+            );
+          }
+        }
+
+        return next(action);
+      }
+    );
+  }, []);
+
+  // Rehidrata visualmente el chat al cargar o refrescar la página
+  useEffect(() => {
+    const savedActivities = JSON.parse(
+      localStorage.getItem(CHAT_ACTIVITIES_KEY) || "[]"
+    );
+
+    if (savedActivities.length > 0) {
+      savedActivities.forEach((activity: any) => {
+        store.dispatch({
+          type: "DIRECT_LINE/INCOMING_ACTIVITY",
+          payload: {
+            activity,
+          },
+        });
+      });
+    }
+  }, [store]);
 
   // Carga color guardado del header
   useEffect(() => {
@@ -105,19 +190,6 @@ function App() {
 
   // Inicializa conexión con Direct Line
   useEffect(() => {
-    // Claves usadas en localStorage
-    const CHAT_TOKEN_KEY = "savio_token";
-    const CHAT_CONVERSATION_KEY = "savio_conversation_id";
-    const CHAT_WATERMARK_KEY = "savio_watermark";
-
-    // Limpia solo datos del chat
-    const clearChatStorage = () => {
-      console.warn("Limpiando solo datos del chat en localStorage...");
-      localStorage.removeItem(CHAT_TOKEN_KEY);
-      localStorage.removeItem(CHAT_CONVERSATION_KEY);
-      localStorage.removeItem(CHAT_WATERMARK_KEY);
-    };
-
     // Genera un nuevo token Direct Line
     const generateToken = async (secret: string) => {
       console.log("Generando nuevo token Direct Line...");
@@ -208,8 +280,12 @@ function App() {
         let conversationId = localStorage.getItem(CHAT_CONVERSATION_KEY);
         let watermark = localStorage.getItem(CHAT_WATERMARK_KEY);
 
+        // Permite saber si se acaba de crear conversación nueva
+        let isNewConversation = false;
+
         console.log("Token guardado existe:", !!token);
         console.log("ConversationId guardado:", conversationId);
+        console.log("Watermark guardado:", watermark);
 
         // Si existe sesión previa, intenta refrescarla
         if (token && conversationId) {
@@ -228,6 +304,8 @@ function App() {
             const generated = await generateToken(secret);
             token = generated.token;
             conversationId = generated.conversationId;
+            watermark = null;
+            isNewConversation = true;
 
             localStorage.setItem(CHAT_TOKEN_KEY, token as string);
             localStorage.setItem(CHAT_CONVERSATION_KEY, conversationId as string);
@@ -239,6 +317,8 @@ function App() {
           const generated = await generateToken(secret);
           token = generated.token;
           conversationId = generated.conversationId;
+          watermark = null;
+          isNewConversation = true;
 
           localStorage.setItem(CHAT_TOKEN_KEY, token as string);
           localStorage.setItem(CHAT_CONVERSATION_KEY, conversationId as string);
@@ -246,13 +326,18 @@ function App() {
           console.log("Primera conversación creada:", conversationId);
         }
 
-        // Crea conexión Direct Line
-        const dl = createDirectLine({
-          token: token as string,
-          conversationId: conversationId as string,
-          watermark: watermark || undefined,
-          webSocket: false,
-        });
+        // Crea conexión Direct Line.
+        // Si es conversación nueva, NO se pasa conversationId ni watermark.
+        // Si es conversación restaurada, sí se pasan para continuar donde iba.
+        const dl = isNewConversation
+          ? createDirectLine({
+              token: token as string,
+            })
+          : createDirectLine({
+              token: token as string,
+              conversationId: conversationId as string,
+              watermark: watermark || undefined,
+            });
 
         // Monitorea estado de conexión
         dl.connectionStatus$.subscribe((status) => {
@@ -263,8 +348,8 @@ function App() {
           }
 
           if (status === 4) {
-            console.error("Direct Line falló al conectar. Se limpiará la conversación guardada.");
-            clearChatStorage();
+            console.error("Direct Line falló al conectar.");
+            setChatError("No se pudo conectar con Direct Line.");
           }
         });
 
@@ -273,9 +358,10 @@ function App() {
           next: (activity) => {
             console.log("Actividad Direct Line:", activity);
 
+            // También guarda watermark desde el observable de Direct Line
             if (activity?.id) {
               const activityWatermark = activity.id.split("|").pop();
-        
+
               if (activityWatermark) {
                 localStorage.setItem(CHAT_WATERMARK_KEY, activityWatermark);
               }
@@ -305,6 +391,14 @@ function App() {
   // Cierra sesión
   const handleLogout = async () => {
     localStorage.removeItem("landingSeen");
+
+    // Al cerrar sesión se elimina la conversación completa.
+    // En el próximo login se generará un token y una conversación nuevos.
+    clearChatStorage();
+
+    setDirectLine(null);
+    setChatError(null);
+
     await logoutAndGoHome(instance);
   };
 
@@ -402,6 +496,7 @@ function App() {
                 <div style={{ height: "100%", width: "100%" }}>
                   <ReactWebChat
                     directLine={directLine}
+                    store={store}
                     styleOptions={styleOptions}
                     locale="es-ES"
                     userID={email || "user_static_savios"}
