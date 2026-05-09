@@ -2,8 +2,8 @@
 import "../styles/Header.css";
 
 // Logo por defecto
-// import defaultLogo from "../assets/images/logo-savios.png";
-import defaultLogo from "../assets/images/logo-comfama.png"; //CAMBIO COMFAMA
+import defaultLogo from "../assets/images/logo-savios.png";
+//import defaultLogo from "../assets/images/logo-comfama.png"; //CAMBIO COMFAMA
 
 // Funciones para obtener datos de sesión
 import { getName, getUniqueName } from "../config/session";

@@ -1,14 +1,14 @@
 /* VARIABLES GLOBALES */
 
    :root {
-    /*--clr-header: #5b2b82;*/       /* color del header */
-    --clr-header: #ffffff; /*CAMBIO COMFAMA*/
+    --clr-header: #5b2b82;       /* color del header */
+    /* --clr-header: #ffffff; CAMBIO COMFAMA */
     --clr-bg: #ffffff;           /* fondo general */
     --clr-text: #222;            /* texto base */
 
     /* Sistema dinámico (configuración) */
-    /*--clr-logout-btn: #4B0F6B;*/   /* fondo botón */
-    --clr-logout-btn: #db0061; /*CAMBIO COMFAMA*/
+    --clr-logout-btn: #4B0F6B;   /* fondo botón */
+    /* --clr-logout-btn: #db0061; CAMBIO COMFAMA */
     --clr-logout-text: #ffffff;  /* texto botón */
 }
 
@@ -26,8 +26,8 @@
     margin: 0;
     height: 64px;
     background: var(--clr-header);
-    /* color: #fff; */
-    color: #000; /*CAMBIO COMFAMA*/
+    color: #fff;
+    /* color: #000; CAMBIO COMFAMA */
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -69,8 +69,8 @@
 .menu-toggle {
     display: none; /* oculto en desktop */
     background: transparent;
-    /* color: #fff; */
-    color: #000; /*CAMBIO COMFAMA*/
+    color: #fff;
+    /* color: #000; CAMBIO COMFAMA */
     font-size: 22px;
     border: none;
     padding: 6px 8px;
@@ -92,7 +92,7 @@
 .welcome {
     font-size: 12px;
     opacity: 0.95;
-    color: #000; /*CAMBIO COMFAMA*/
+    /* color: #000; CAMBIO COMFAMA */
 }
 
 

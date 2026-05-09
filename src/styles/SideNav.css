@@ -1,8 +1,8 @@
 /* Variables de estilos para el sidenav */
 :root {
     --sidenav-w: 220px; /* ancho del menú lateral */
-    /* --clr-sidebar-btn: #F49A20;*/   /*color de fondo de botones */
-    --clr-sidebar-btn: #db0061; /*CAMBIO COMFAMA*/
+    --clr-sidebar-btn: #F49A20;   /*color de fondo de botones */
+    /* --clr-sidebar-btn: #db0061; CAMBIO COMFAMA */
     --clr-sidebar-text: #ffffff;  /* color de texto de botones */
 }
 
